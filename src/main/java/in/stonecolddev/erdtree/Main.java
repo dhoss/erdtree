@@ -1,13 +1,16 @@
 package in.stonecolddev.erdtree;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Optional;
 
 public class Main {
 
+    public record Comment(Integer id, String message, List<Integer> path, Integer parentId, Integer depth){}
     public static void main(String[] args) throws SQLException {
+
         try (Connection con = DataSource.getConnection();
              PreparedStatement pst = con.prepareStatement(
                      """
@@ -30,24 +33,37 @@ public class Main {
                              FROM    comments
                              JOIN cte ON comments.parent_id = cte.id
                              )
-                             SELECT id, message, path, depth FROM cte
+                             SELECT id, message, path, depth, parent_id FROM cte
                              ORDER BY path;
                          """
              );
              ResultSet rs = pst.executeQuery()
         ) {
-            System.out.println("id message path depth");
+            HashMap<Integer, Comment> commentMap = new HashMap<>();
             while (rs.next()) {
+              //  Optional<Integer> maybeParentId = Optional.ofNullable(rs.getInt("parent_id"));
+                int id = rs.getInt("id");
+                commentMap.put(
+                        id,
+                        new Comment(
+                                id,
+                                rs.getString("message"),
+                                Arrays.asList((Integer[]) rs.getArray("path").getArray()),
+                                rs.getInt("parent_id"),
+                                rs.getInt("depth")));
+              //  if (maybeParentId.isPresent()) {
+              //      rootNode = new TreeNode<>(currentComment);
+              //  }
+               }
+
+            for (var comment : commentMap.entrySet()) {
                 System.out.printf(
                         """
-                                %d %s %s %d
-                                """,
-                        rs.getInt("id"),
-                        rs.getString("message"),
-                        rs.getString("path"),
-                        rs.getInt("depth")
+                                %s -> %s
+                                """, comment.getKey(), comment.getValue()
                 );
             }
+
         }
     }
 }
